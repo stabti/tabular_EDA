@@ -14,6 +14,7 @@ import umap
 """ Instructions :
 - Utiliser "Run in interactive window " pour faire tourner ce script pas à pas
 - Le script actuel permet de démarrer les analyses de manière "brute"
+- Étudiez ce script et comprenez-le, jouez avec les paramètres du clustering
 - Répondez aux questions en commentaire à la fin du script pour aller plus loin dans l'analyse"""
 
 # fetch dataset 
@@ -57,11 +58,6 @@ print(X.describe())
 # Size of the dataset
 print("Size of the dataset: ", X.shape)
 
-# Reset index to have 'timestamp' as a column
-X_reset = X.reset_index()
-
-# Select only numeric columns for scatter matrix (excluding timestamp)
-numeric_cols = X_reset.select_dtypes(include=np.number).columns
 
 # 1. Afficher un pairplot entre les variables avec seaborn
 sns.pairplot(X)
@@ -80,6 +76,13 @@ print("Pourcentage de valeurs -200 par colonne :\n", missing_pct_by_col)
 
 # Suppression de la colonne comportant 90% de valeurs manquantes
 X = X.drop(columns=['NMHC(GT)'])
+
+# Reset index to have 'timestamp' as a column
+X_reset = X.reset_index()
+
+
+# Select only numeric columns for scatter matrix (excluding timestamp)
+numeric_cols = X_reset.select_dtypes(include=np.number).columns
 
 # Remplacer les -200 par NaN pour toutes les colonnes
 X = X.replace(-200, np.nan)
@@ -140,13 +143,59 @@ plt.show()
 
 """ 
 Questions à se poser sur le dataset :
-- Que resprésente ce dataset ?
+- Que resprésente ce dataset ? Faites des recherches sur internet pour mieux comprendre son contexte.
 - Quelles cas d'usages on peut imaginer avec ce dataset ?
 - De quand à quand ont été prises les mesures ?
 - Est ce que les données sont bien temporellemnt ordonnées ?
 - Est ce qu'il y a des doublons ?
-- Les valeurs manquantes sont égales à -200 sur ce dataset, identifiez les et remplacez les avec une méthode d'imputation de votre choix.
+- Les valeurs manquantes sont égales à -200 sur ce dataset, je les ai remplacées avec une méthode basique. Vérifiez qu'elle est pertinente. Si non, essayez d'autres méthodes.
 - Est ce qu'il y a des valeurs aberrantes ? (utiliser des visualisations adaptées)
-- Comment évoluent les données en une journée ? une semaine ? une saison ? (utiliser des visualisations adaptées)
+- Comment évoluent les données en une journée ? une semaine ? une saison ? (utiliser des visualisations adaptées, commencez par visualiser les données brutes)
 - Quelles sont les variables les plus corrélées entre elles ?
 """
+
+
+def plot_raw_between(df, start_date, end_date, cols=None, figsize=(12,6), ylabel='Valeur', title=None):
+    """
+    Affiche les séries temporelles (lignes pleines) pour les colonnes demandées
+    entre start_date et end_date (inclus).
+    - df : DataFrame avec index DatetimeIndex
+    - start_date, end_date : str ou datetime (ex: '2004-03-10', '2004-03-10 12:00')
+    - cols : liste de colonnes à afficher (None => toutes les colonnes numériques)
+    """
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("Le DataFrame doit avoir un index de type DatetimeIndex.")
+    start = pd.to_datetime(start_date, errors='coerce')
+    end = pd.to_datetime(end_date, errors='coerce')
+    if pd.isna(start) or pd.isna(end):
+        raise ValueError("start_date ou end_date invalide / non parsable.")
+    if start > end:
+        start, end = end, start  # swap si ordre inversé (tolérance)
+    sub = df.loc[start:end]
+    if sub.empty:
+        print(f"Aucune donnée entre {start} et {end}.")
+        return
+    if cols is None:
+        cols = sub.select_dtypes(include=np.number).columns.tolist()
+    else:
+        # garder seulement les colonnes existantes
+        cols = [c for c in cols if c in sub.columns]
+        if not cols:
+            print("Aucune des colonnes demandées n'est présente dans le DataFrame.")
+            return
+
+    plt.figure(figsize=figsize)
+    for col in cols:
+        plt.plot(sub.index, sub[col], '-', linewidth=1, label=col)
+    plt.xlabel('Timestamp')
+    plt.ylabel(ylabel)
+    if title is None:
+        title = f"Données brutes entre {start.date()} et {end.date()}"
+    plt.title(title)
+    plt.legend(loc='best', fontsize='small')
+    plt.grid(True, linestyle='--', alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+# Exemple d'appel d'affichage données brutes entre deux dates
+plot_raw_between(X, '2004-03-10', '2004-03-20', cols=['CO(GT)', 'T'], figsize=(14,6))
